@@ -1,0 +1,1195 @@
+settings
+{
+	lobby
+	{
+		Allow Players Who Are In Queue: Yes
+		Max Spectators: 12
+		Max Team 1 Players: 4
+	}
+
+	modes
+	{
+		Junkenstein's Revenge
+
+		General
+		{
+			Endless Mode: On
+			Game Mode Start: Immediately
+			Limit Roles: 2 Of Each Role Per Team
+		}
+	}
+
+	heroes
+	{
+		Team 2
+		{
+			Mei
+			{
+				Cryo-Freeze Cooldown Time: 0%
+				Ice Wall Cooldown Time: 0%
+			}
+		}
+	}
+}
+
+variables
+{
+	global:
+		0: enemykillrewardbase
+		2: lastscore
+		3: doublepoints
+		4: round
+		5: buyround
+		6: itemonelocation
+		7: itemtwolocation
+		8: itemthreelocation
+		9: tradereffects
+		10: traderingametext
+		13: upgradelocation1
+		14: upgradelocation2
+		15: upgradelocation3
+		17: itemoneid
+		18: itemtwoid
+		19: itemthreeid
+		26: amulateofhastecost1
+		27: ringofdestructioncost2
+		28: pendantofdenialcost3
+		29: ringofgiantscost4
+		30: rabbitbootscost5
+		31: phoenixcost6
+		32: redtearringcost7
+		33: costof1
+		34: costof2
+		35: costof3
+
+	player:
+		0: passiveitem1
+		1: passiveitem2
+		2: passiveitem3
+		6: basehealth
+		10: inventory
+		12: money
+		16: attack
+		17: constitution
+		18: dexterity
+		19: basespeed
+		20: basedamage
+		21: hasamulateofhaste
+		24: levelcost
+}
+
+subroutines
+{
+	2: finditemname
+	3: randomitem
+	5: updatestats
+	6: getitemvalues
+}
+
+rule("define global vars")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	actions
+	{
+		Global.doublepoints = False;
+		Global.lastscore = Team Score(Team 1);
+		Global.round = 1;
+		Global.itemonelocation = Vector(65.089, 13.450, -91.945);
+		Global.itemtwolocation = Vector(64.098, 13.019, -95.279);
+		Global.itemthreelocation = Vector(63.427, 13.491, -99.751);
+		Global.upgradelocation1 = Vector(83.521, 14.074, -67.350);
+		Global.upgradelocation2 = Vector(81.185, 14.116, -73.463);
+		Global.upgradelocation3 = Vector(74.409, 14.089, -69.761);
+		Global.amulateofhastecost1 = 8000;
+		Global.ringofdestructioncost2 = 10000;
+		Global.pendantofdenialcost3 = 10000;
+		Global.ringofgiantscost4 = 25000;
+		Global.rabbitbootscost5 = 9000;
+		Global.phoenixcost6 = 10000;
+		Global.redtearringcost7 = 35000;
+		Global.ringofdestructioncost2 += 10000;
+	}
+}
+
+rule("define player vars")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	actions
+	{
+		Event Player.money = 5000;
+		Event Player.passiveitem1 = Random Integer(1, 10);
+		Event Player.passiveitem2 = Random Integer(1, 10);
+		Event Player.passiveitem3 = Random Integer(1, 10);
+		Event Player.levelcost = 600;
+		Event Player.basehealth = 100;
+		Event Player.basespeed = 100;
+		Event Player.basedamage = 100;
+		Event Player.inventory = Empty Array;
+	}
+}
+
+rule("display hud")
+{
+	event
+	{
+		Ongoing - Each Player;
+		Team 1;
+		All;
+	}
+
+	actions
+	{
+		Create HUD Text(All Players(All Teams), Custom String("{0}{2}: ${1}", Hero Icon String(Hero Of(Event Player)), Event Player.money,
+			Event Player), Null, Null, Right, 0, Green, Green, Green, Visible To and String, Default Visibility);
+		"debug"
+		disabled Global.enemykillrewardbase = 0;
+		Create HUD Text(Event Player, Custom String("ROUND {0}", Global.round), Null, Null, Top, 0, White, White, White,
+			Visible To and String, Default Visibility);
+	}
+}
+
+rule("every sixty seconds, add to match var")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Wait(60, Ignore Condition);
+		Global.round += 1;
+		Loop If Condition Is True;
+	}
+}
+
+rule("is buyround")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		(Global.round % 3 == 0) == True;
+	}
+
+	actions
+	{
+		Call Subroutine(randomitem);
+		Call Subroutine(getitemvalues);
+		Global.buyround = True;
+		Big Message(All Players(All Teams), Custom String("the wandering trader has arrived!"));
+	}
+}
+
+rule("is not buyround")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		(Global.round % 3 == 0) == False;
+	}
+
+	actions
+	{
+		Global.buyround = False;
+	}
+}
+
+rule("create physical trader")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.buyround == True;
+	}
+
+	actions
+	{
+		Skip If(Global.itemoneid != 1, 4);
+		Create In-World Text(All Players(All Teams), Custom String("AMULET OF HASTE ${0}", Global.amulateofhastecost1),
+			Global.itemonelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Green, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Green, Global.itemonelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemoneid != 2, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF DESTRUCTION ${0}", Global.ringofdestructioncost2),
+			Global.itemonelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Green, Global.itemonelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemoneid != 3, 4);
+		Create In-World Text(All Players(All Teams), Custom String("TOTEM OF UNDYING ${0}", Global.pendantofdenialcost3),
+			Global.itemonelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Blue, Global.itemonelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemoneid != 4, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF THE GIANTS ${0}", Global.ringofgiantscost4),
+			Global.itemonelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Yellow, Global.itemonelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemoneid != 5, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RABBIT BOOTS ${0}", Global.rabbitbootscost5),
+			Global.itemonelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, White, Global.itemonelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemoneid != 6, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF THE PHOENIX ${0}", Global.phoenixcost6),
+			Global.itemonelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Red, Global.itemonelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemoneid != 7, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RED TEARSTONE RING ${0}", Global.redtearringcost7),
+			Global.itemonelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Red, Global.itemonelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemtwoid != 1, 4);
+		Create In-World Text(All Players(All Teams), Custom String("AMULET OF HASTE ${0}", Global.amulateofhastecost1),
+			Global.itemtwolocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Green, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Green, Global.itemtwolocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemtwoid != 2, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF DESTRUCTION ${0}", Global.ringofdestructioncost2),
+			Global.itemtwolocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Green, Global.itemtwolocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemtwoid != 3, 4);
+		Create In-World Text(All Players(All Teams), Custom String("TOTEM OF UNDYING ${0}", Global.pendantofdenialcost3),
+			Global.itemtwolocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Blue, Global.itemtwolocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemtwoid != 4, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF THE GIANTS ${0}", Global.ringofgiantscost4),
+			Global.itemtwolocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Yellow, Global.itemtwolocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemtwoid != 5, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RABBIT BOOTS ${0}", Global.rabbitbootscost5),
+			Global.itemtwolocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, White, Global.itemtwolocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemtwoid != 6, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF THE PHOENIX ${0}", Global.phoenixcost6),
+			Global.itemtwolocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Red, Global.itemtwolocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemtwoid != 7, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RED TEARSTONE RING ${0}", Global.redtearringcost7),
+			Global.itemtwolocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Red, Global.itemtwolocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemthreeid != 1, 4);
+		Create In-World Text(All Players(All Teams), Custom String("AMULET OF HASTE ${0}", Global.amulateofhastecost1),
+			Global.itemthreelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Green,
+			Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Green, Global.itemthreelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemthreeid != 2, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF DESTRUCTION ${0}", Global.ringofdestructioncost2),
+			Global.itemthreelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Green, Global.itemthreelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemthreeid != 3, 4);
+		Create In-World Text(All Players(All Teams), Custom String("TOTEM OF UNDYING ${0}", Global.pendantofdenialcost3),
+			Global.itemthreelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Blue, Global.itemthreelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemthreeid != 4, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF THE GIANTS ${0}", Global.ringofgiantscost4),
+			Global.itemthreelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Yellow, Global.itemthreelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemthreeid != 5, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RABBIT BOOTS ${0}", Global.rabbitbootscost5),
+			Global.itemthreelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, White, Global.itemthreelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemthreeid != 6, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RING OF THE PHOENIX ${0}", Global.phoenixcost6),
+			Global.itemthreelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Red, Global.itemthreelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Skip If(Global.itemthreeid != 7, 4);
+		Create In-World Text(All Players(All Teams), Custom String("RED TEARSTONE RING ${0}", Global.redtearringcost7),
+			Global.itemthreelocation + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String, Red, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+		Create Effect(All Players(All Teams), Ring, Red, Global.itemthreelocation, 1, Visible To Position and Radius);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Create Icon(All Players(All Teams), Global.itemtwolocation, Diamond, Visible To and Position, Sky Blue, True);
+		Global.tradereffects = Append To Array(Global.tradereffects, Last Created Entity);
+		Create In-World Text(Players Within Radius(Global.itemtwolocation, 10, Team 1, Off), Custom String(
+			"Take a look at my wares adventurer..."), Global.itemtwolocation, 1, Clip Against Surfaces, Visible To Position and String,
+			Blue, Default Visibility);
+		Global.traderingametext = Append To Array(Global.traderingametext, Last Text ID);
+	}
+}
+
+rule("cleanup trader")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.buyround == False;
+	}
+
+	actions
+	{
+		For Global Variable(Z, 0, Count Of(Global.tradereffects), 1);
+			Destroy Effect(Global.tradereffects[Global.Z]);
+		End;
+		For Global Variable(Z, 0, Count Of(Global.traderingametext), 1);
+			Destroy In-World Text(Global.traderingametext[Global.Z]);
+		End;
+	}
+}
+
+rule("add money on elim to all players")
+{
+	event
+	{
+		Player Died;
+		Team 2;
+		All;
+	}
+
+	actions
+	{
+		All Players(Team 1).money += 500 * Global.round;
+		Big Message(All Players(All Teams), Custom String("CLAIMED BOUNTY OF ${0}", 500 * Global.round));
+	}
+}
+
+rule("add money on damage")
+{
+	event
+	{
+		Player Dealt Damage;
+		Team 1;
+		All;
+	}
+
+	actions
+	{
+		Event Player.money += 0.200 * Global.round;
+	}
+}
+
+rule("add money on final")
+{
+	event
+	{
+		Player Dealt Final Blow;
+		Team 1;
+		All;
+	}
+
+	actions
+	{
+		Event Player.money += 250 * Global.round;
+	}
+}
+
+rule("add money over time")
+{
+	event
+	{
+		Ongoing - Each Player;
+		Team 1;
+		All;
+	}
+
+	conditions
+	{
+		Is Alive(Event Player) == True;
+	}
+
+	actions
+	{
+		Wait(2.500, Ignore Condition);
+		Event Player.money += 100 * Global.round;
+		Skip If(Number of Players(Team 1) != 1, 1);
+		Event Player.money += 100 * Global.round;
+		Loop If Condition Is True;
+	}
+}
+
+rule("reset money on death")
+{
+	event
+	{
+		Player Died;
+		Team 1;
+		All;
+	}
+
+	actions
+	{
+		Event Player.money = 0;
+	}
+}
+
+rule("display level info")
+{
+	event
+	{
+		Ongoing - Each Player;
+		Team 1;
+		All;
+	}
+
+	actions
+	{
+		Create In-World Text(Event Player, Custom String("ATTACK LEVEL {0} --> {1} ${2}", Event Player.attack, 1 + Event Player.attack,
+			Event Player.levelcost), Global.upgradelocation1 + Vector(0, 1, 0), 1, Clip Against Surfaces, Visible To Position and String,
+			White, Default Visibility);
+		Create In-World Text(Event Player, Custom String("VITALITY LEVEL {0} --> {1} ${2}", Event Player.constitution,
+			1 + Event Player.constitution, Event Player.levelcost), Global.upgradelocation2 + Vector(0, 1, 0), 1, Clip Against Surfaces,
+			Visible To Position and String, White, Default Visibility);
+		Create In-World Text(Event Player, Custom String("DEXTERITY LEVEL {0} --> {1} ${2}", Event Player.dexterity,
+			1 + Event Player.dexterity, Event Player.levelcost), Global.upgradelocation3 + Vector(0, 1, 0), 1, Clip Against Surfaces,
+			Visible To Position and String, White, Default Visibility);
+	}
+}
+
+rule("display level locations")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	actions
+	{
+		Create Effect(All Players(All Teams), Ring, Red, Global.upgradelocation1, 1, Visible To Position and Radius);
+		Create Effect(All Players(All Teams), Ring, Green, Global.upgradelocation2, 1, Visible To Position and Radius);
+		Create Effect(All Players(All Teams), Ring, Purple, Global.upgradelocation3, 1, Visible To Position and Radius);
+	}
+}
+
+rule("player close enough attack")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Distance Between(Event Player, Global.upgradelocation1) < 2;
+		Is Button Held(Event Player, Interact) == True;
+		Event Player.money - Event Player.levelcost >= 0;
+	}
+
+	actions
+	{
+		Wait(3, Ignore Condition);
+		Event Player.attack += 1;
+		Play Effect(All Players(All Teams), Ring Explosion, Red, Event Player, 6);
+		Play Effect(All Players(All Teams), Good Pickup Effect, Red, Event Player, 99);
+		Event Player.money -= Event Player.levelcost;
+		Event Player.levelcost *= 1.650;
+		Call Subroutine(updatestats);
+		Big Message(Event Player, Custom String("ATK UP!"));
+	}
+}
+
+rule("player close enough to const")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Distance Between(Event Player, Global.upgradelocation2) < 2;
+		Is Button Held(Event Player, Interact) == True;
+		Event Player.money - Event Player.levelcost >= 0;
+	}
+
+	actions
+	{
+		Wait(3, Ignore Condition);
+		Event Player.constitution += 1;
+		Play Effect(All Players(All Teams), Ring Explosion, Green, Event Player, 6);
+		Play Effect(All Players(All Teams), Good Pickup Effect, Red, Event Player, 99);
+		Event Player.money -= Event Player.levelcost;
+		Event Player.levelcost *= 1.650;
+		Call Subroutine(updatestats);
+		Big Message(Event Player, Custom String("VIT UP!"));
+	}
+}
+
+rule("player close enough to dex")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Distance Between(Event Player, Global.upgradelocation3) < 2;
+		Is Button Held(Event Player, Interact) == True;
+		Event Player.money - Event Player.levelcost >= 0;
+	}
+
+	actions
+	{
+		Wait(3, Ignore Condition);
+		Event Player.dexterity += 1;
+		Play Effect(All Players(All Teams), Ring Explosion, Purple, Event Player, 6);
+		Play Effect(All Players(All Teams), Good Pickup Effect, Red, Event Player, 99);
+		Event Player.money -= Event Player.levelcost;
+		Event Player.levelcost *= 1.650;
+		Call Subroutine(updatestats);
+		Big Message(Event Player, Custom String("DEX UP!"));
+	}
+}
+
+rule("player close enough to item 1")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Distance Between(Event Player, Global.itemonelocation) < 2;
+		Is Button Held(Event Player, Interact) == True;
+		Global.buyround == True;
+	}
+
+	actions
+	{
+		Wait(1, Ignore Condition);
+		Abort If(Event Player.money - Global.costof1 < 0);
+		Abort If(Index Of Array Value(Event Player.inventory, Global.itemoneid) != -1);
+		Event Player.inventory = Append To Array(Event Player.inventory, Global.itemoneid);
+		Event Player.money -= Global.costof1;
+		Call Subroutine(finditemname);
+		Play Effect(All Players(All Teams), Ring Explosion, White, Global.itemonelocation, 6);
+	}
+}
+
+rule("player close enough to item 2")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Distance Between(Event Player, Global.itemtwolocation) < 2;
+		Is Button Held(Event Player, Interact) == True;
+		Global.buyround == True;
+	}
+
+	actions
+	{
+		Wait(1, Ignore Condition);
+		Abort If(Event Player.money - Global.costof2 < 0);
+		Abort If(Index Of Array Value(Event Player.inventory, Global.itemtwoid) != -1);
+		Event Player.money -= Global.costof2;
+		Event Player.inventory = Append To Array(Event Player.inventory, Global.itemoneid);
+		Call Subroutine(finditemname);
+		Play Effect(All Players(All Teams), Ring Explosion, White, Global.itemtwolocation, 6);
+	}
+}
+
+rule("player close enough to item 3")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Distance Between(Event Player, Global.itemthreelocation) < 2;
+		Is Button Held(Event Player, Interact) == True;
+		Global.buyround == True;
+	}
+
+	actions
+	{
+		Wait(1, Ignore Condition);
+		Abort If(Event Player.money - Global.costof3 < 0);
+		Abort If(Index Of Array Value(Event Player.inventory, Global.itemthreeid) != -1);
+		Event Player.money -= Global.costof3;
+		Event Player.inventory = Append To Array(Event Player.inventory, Global.itemoneid);
+		Call Subroutine(finditemname);
+		Play Effect(All Players(All Teams), Ring Explosion, White, Global.itemthreelocation, 6);
+	}
+}
+
+rule("itemvaluesub")
+{
+	event
+	{
+		Subroutine;
+		getitemvalues;
+	}
+
+	actions
+	{
+		Skip If(Global.itemoneid != 1, 1);
+		Global.costof1 = Global.amulateofhastecost1;
+		Skip If(Global.itemoneid != 2, 1);
+		Global.costof1 = Global.ringofdestructioncost2;
+		Skip If(Global.itemoneid != 3, 1);
+		Global.costof1 = Global.pendantofdenialcost3;
+		Skip If(Global.itemoneid != 4, 1);
+		Global.costof1 = Global.ringofgiantscost4;
+		Skip If(Global.itemoneid != 5, 1);
+		Global.costof1 = Global.rabbitbootscost5;
+		Skip If(Global.itemoneid != 6, 1);
+		Global.costof1 = Global.phoenixcost6;
+		Skip If(Global.itemoneid != 7, 1);
+		Global.costof1 = Global.redtearringcost7;
+		Skip If(Global.itemtwoid != 1, 1);
+		Global.costof2 = Global.amulateofhastecost1;
+		Skip If(Global.itemtwoid != 2, 1);
+		Global.costof2 = Global.ringofdestructioncost2;
+		Skip If(Global.itemtwoid != 3, 1);
+		Global.costof2 = Global.pendantofdenialcost3;
+		Skip If(Global.itemtwoid != 4, 1);
+		Global.costof2 = Global.ringofgiantscost4;
+		Skip If(Global.itemtwoid != 5, 1);
+		Global.costof2 = Global.rabbitbootscost5;
+		Skip If(Global.itemtwoid != 6, 1);
+		Global.costof2 = Global.phoenixcost6;
+		Skip If(Global.itemtwoid != 7, 1);
+		Global.costof2 = Global.redtearringcost7;
+		Skip If(Global.itemthreeid != 1, 1);
+		Global.costof3 = Global.amulateofhastecost1;
+		Skip If(Global.itemthreeid != 2, 1);
+		Global.costof3 = Global.ringofdestructioncost2;
+		Skip If(Global.itemthreeid != 3, 1);
+		Global.costof3 = Global.pendantofdenialcost3;
+		Skip If(Global.itemthreeid != 4, 1);
+		Global.costof3 = Global.ringofgiantscost4;
+		Skip If(Global.itemthreeid != 5, 1);
+		Global.costof3 = Global.rabbitbootscost5;
+		Skip If(Global.itemthreeid != 6, 1);
+		Global.costof3 = Global.phoenixcost6;
+		Skip If(Global.itemthreeid != 7, 1);
+		Global.costof3 = Global.redtearringcost7;
+	}
+}
+
+rule("randomitemsub")
+{
+	event
+	{
+		Subroutine;
+		randomitem;
+	}
+
+	actions
+	{
+		Global.itemoneid = Random Integer(1, 7);
+		Global.itemtwoid = Random Integer(1, 7);
+		Global.itemthreeid = Random Integer(1, 7);
+	}
+}
+
+rule("updatestatssub")
+{
+	event
+	{
+		Subroutine;
+		updatestats;
+	}
+
+	actions
+	{
+		Event Player.basehealth = 100 + (20 - Event Player.constitution) * Event Player.constitution;
+		Event Player.basedamage = 100 + Event Player.attack * 2.200;
+		Event Player.basespeed = 100 + Event Player.dexterity * 2.260;
+		Set Move Speed(Event Player, Event Player.basespeed);
+		Set Damage Dealt(Event Player, Event Player.basedamage);
+		Set Max Health(Event Player, Event Player.basehealth);
+	}
+}
+
+rule("itemnamesub")
+{
+	event
+	{
+		Subroutine;
+		finditemname;
+	}
+
+	actions
+	{
+		Skip If(Index Of Array Value(Event Player.inventory, 1) == -1, 1);
+		Create HUD Text(Event Player, Custom String("AMULET OF HASTE"), Null, Null, Left, 0, Green, Green, Green, Visible To and String,
+			Default Visibility);
+		Skip If(Index Of Array Value(Event Player.inventory, 2) == -1, 1);
+		Create HUD Text(Event Player, Custom String("RING OF DESTRUCTION"), Null, Null, Left, 0, Red, Red, Red, Visible To and String,
+			Default Visibility);
+		Skip If(Index Of Array Value(Event Player.inventory, 3) == -1, 1);
+		Create HUD Text(Event Player, Custom String("TOTEM OF UNDYING"), Null, Null, Left, 0, Yellow, Yellow, Yellow,
+			Visible To and String, Default Visibility);
+		Skip If(Index Of Array Value(Event Player.inventory, 4) == -1, 1);
+		Create HUD Text(Event Player, Custom String("RING OF THE GIANTS"), Null, Null, Left, 0, Yellow, Yellow, Yellow,
+			Visible To and String, Default Visibility);
+		Skip If(Index Of Array Value(Event Player.inventory, 5) == -1, 1);
+		Create HUD Text(Event Player, Custom String("RABBIT BOOTS"), Null, Null, Left, 0, Yellow, Yellow, Yellow, Visible To and String,
+			Default Visibility);
+		Skip If(Index Of Array Value(Event Player.inventory, 6) == -1, 1);
+		Create HUD Text(Event Player, Custom String("RING OF THE PHEONIX"), Null, Null, Left, 0, Red, Red, Red, Visible To and String,
+			Default Visibility);
+		Skip If(Index Of Array Value(Event Player.inventory, 7) == -1, 1);
+		Create HUD Text(Event Player, Custom String("RED TEARSTONE RING"), Null, Null, Left, 0, Red, Red, Red, Visible To and String,
+			Default Visibility);
+	}
+}
+
+disabled rule("ring effect checks")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+}
+
+rule("ring of the phoenix on")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 4) != -1;
+	}
+
+	actions
+	{
+		Set Status(Event Player, Null, Unkillable, 9999);
+	}
+}
+
+rule("ring of the phoenix respawn")
+{
+	event
+	{
+		Player Took Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 4) != -1;
+		Health(Event Player) <= 2;
+	}
+
+	actions
+	{
+		Start Forcing Player To Be Hero(Event Player, Random Value In Array(All Heroes));
+		Heal(Event Player, Null, 1000);
+		Big Message(All Players(All Teams), Custom String("{0} has been reborn!", Event Player));
+		Play Effect(All Players(All Teams), Ring Explosion, Red, Event Player, 9);
+		Play Effect(All Players(All Teams), Good Explosion, Orange, Event Player, 9);
+		Play Effect(All Players(All Teams), Buff Explosion Sound, White, Event Player, 200);
+		Play Effect(All Players(All Teams), Buff Impact Sound, White, Event Player, 200);
+		Clear Status(Event Player, Unkillable);
+	}
+}
+
+rule("red tearstone ring damage up")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Health(Event Player) < Max Health(Event Player) * 0.400;
+		Index Of Array Value(Event Player.inventory, 7) != -1;
+	}
+
+	actions
+	{
+		Set Damage Dealt(Event Player, 35 + Event Player.basedamage);
+		Set Status(Event Player, Null, Burning, 9999);
+	}
+}
+
+rule("red tearstone ring damage down")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Health(Event Player) > Max Health(Event Player) * 0.400;
+		Index Of Array Value(Event Player.inventory, 7) != -1;
+	}
+
+	actions
+	{
+		Set Damage Dealt(Event Player, Event Player.basedamage);
+		Clear Status(Event Player, Burning);
+	}
+}
+
+rule("rtring  off")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 7) == -1;
+	}
+
+	actions
+	{
+		Set Damage Dealt(Event Player, Event Player.basedamage);
+		Clear Status(Event Player, Burning);
+	}
+}
+
+rule("amulet of haste")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 1) != -1;
+	}
+
+	actions
+	{
+		Set Move Speed(Event Player, 25 + Event Player.basespeed);
+		Wait(2, Ignore Condition);
+		Loop If Condition Is True;
+	}
+}
+
+rule("rabbit boots on")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 5) != -1;
+	}
+
+	actions
+	{
+		Set Gravity(Event Player, 65);
+		Skip If(Event Player.hasamulateofhaste == True, 1);
+		Set Move Speed(Event Player, 7 + Event Player.basespeed);
+		Skip If(Event Player.hasamulateofhaste == False, 1);
+		Set Move Speed(Event Player, 32 + Event Player.basespeed);
+	}
+}
+
+rule("rabbit boots off")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 5) == -1;
+	}
+
+	actions
+	{
+		Set Gravity(Event Player, 100);
+		Skip If(Index Of Array Value(Event Player.inventory, 1) == -1, 1);
+		Set Move Speed(Event Player, 25 + Event Player.basespeed);
+	}
+}
+
+rule("ring of giants on")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 4) != -1;
+	}
+
+	actions
+	{
+		Set Max Health(Event Player, 10 + Event Player.basehealth);
+	}
+}
+
+rule("ring of giants off")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 5) == -1;
+	}
+
+	actions
+	{
+		Set Max Health(Event Player, Event Player.basehealth);
+	}
+}
+
+rule("totem of undying set unkillable")
+{
+	event
+	{
+		Player Took Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 3) != -1;
+	}
+
+	actions
+	{
+		Set Status(Event Player, Null, Unkillable, 9999);
+	}
+}
+
+rule("totem proc")
+{
+	event
+	{
+		Player Took Damage;
+		Team 1;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 3) != -1;
+		Health(Event Player) <= 2;
+	}
+
+	actions
+	{
+		Heal(Event Player, Null, 90);
+		Start Heal Over Time(Event Player, Event Player, 3, 100);
+		Event Player.inventory = Remove From Array(Event Player.inventory, 3);
+		Call Subroutine(finditemname);
+		Big Message(All Players(All Teams), Custom String("{0} USED TOTEM OF UNDYING!", Event Player));
+		Play Effect(All Players(All Teams), Ring Explosion, Yellow, Event Player, 9);
+		Play Effect(All Players(All Teams), Good Explosion, Yellow, Event Player, 9);
+		Play Effect(All Players(All Teams), Buff Explosion Sound, White, Event Player, 200);
+		Play Effect(All Players(All Teams), Buff Impact Sound, White, Event Player, 200);
+		Clear Status(Event Player, Unkillable);
+	}
+}
+
+rule("ring of destruction on")
+{
+	event
+	{
+		Ongoing - Each Player;
+		Team 1;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 2) != -1;
+	}
+
+	actions
+	{
+		Set Damage Dealt(Event Player, Event Player.basedamage + 10);
+	}
+}
+
+rule("ring of destruction off")
+{
+	event
+	{
+		Ongoing - Each Player;
+		Team 1;
+		All;
+	}
+
+	conditions
+	{
+		Index Of Array Value(Event Player.inventory, 2) == -1;
+	}
+
+	actions
+	{
+		Set Damage Dealt(Event Player, Event Player.basedamage);
+	}
+}
+
+rule("INFO MSG")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Wait(10, Ignore Condition);
+		Big Message(All Players(All Teams), Custom String("PRESS F INSIDE RINGS TO UPGRADE AND BUY"));
+		Big Message(All Players(All Teams), Custom String("PRESS F INSIDE RINGS TO UPGRADE AND BUY"));
+		Wait(5, Ignore Condition);
+		Big Message(All Players(All Teams), Custom String("wandering trader will arrive periodically!"));
+	}
+}
+
+disabled rule("debug hot && damage")
+{
+	event
+	{
+		Ongoing - Each Player;
+		Team 1;
+		All;
+	}
+
+	conditions
+	{
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Start Heal Over Time(Event Player, Event Player, 9999, 40);
+		Wait(5, Ignore Condition);
+	}
+}
+
+disabled rule("debug text")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	actions
+	{
+		Create HUD Text(Event Player, Custom String("inventory: {0}", Event Player.inventory), Null, Null, Top, 0, White, White, White,
+			Visible To and String, Default Visibility);
+		Create HUD Text(Event Player, Custom String("base speed {0}%", Event Player.basespeed), Null, Null, Top, 0, White, White, White,
+			Visible To and String, Default Visibility);
+		Create HUD Text(Event Player, Custom String("base health {0}%", Event Player.basehealth), Null, Null, Top, 0, White, White, White,
+			Visible To and String, Default Visibility);
+		Create HUD Text(Event Player, Custom String("base damage {0}%", Event Player.basedamage), Null, Null, Top, 0, White, White, White,
+			Visible To and String, Default Visibility);
+		Create HUD Text(Event Player, Custom String("{0}", Position Of(Event Player)), Null, Null, Top, 0, Orange, Orange, Orange,
+			Visible To and String, Default Visibility);
+	}
+}
